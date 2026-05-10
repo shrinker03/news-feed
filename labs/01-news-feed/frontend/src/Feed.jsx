@@ -4,19 +4,43 @@ import { fetchPostsPage } from './api';
 const PAGE_SIZE = 20;
 
 export default function Feed() {
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, status } = useInfiniteQuery({
+  const {
+    data, fetchNextPage, hasNextPage, isFetchingNextPage, status, error, refetch,
+  } = useInfiniteQuery({
     queryKey: ['posts'],
-    queryFn: ({ pageParam }) => fetchPostsPage({ pageParam, limit: PAGE_SIZE }),
-    // null = first page (no cursor yet); useInfiniteQuery tracks this per page
+    // TanStack Query injects { signal } automatically — fetchPostsPage threads it into fetch()
+    // so abandoned requests (unmount, fast navigation) are cancelled, not left dangling.
+    queryFn: ({ pageParam, signal }) => fetchPostsPage({ pageParam, limit: PAGE_SIZE, signal }),
     initialPageParam: null,
-    // returning undefined (not null) tells TanStack Query there are no more pages
     getNextPageParam: lastPage => lastPage.nextCursor ?? undefined,
+    // Exponential backoff + jitter: spreads retry storms so a recovering server
+    // isn't immediately re-slammed by all clients retrying in sync.
+    retry: 3,
+    retryDelay: attempt => Math.min(1000 * 2 ** attempt, 8000) + Math.random() * 250,
   });
 
   const posts = data?.pages.flatMap(p => p.items) ?? [];
 
   if (status === 'pending') {
     return <div style={{ padding: '2rem', textAlign: 'center', color: '#888' }}>Loading...</div>;
+  }
+
+  // Error state: show message + refetch button instead of silent failure (stage 0 behaviour).
+  // Only fires after all 3 retries are exhausted.
+  if (status === 'error') {
+    return (
+      <div style={{ padding: '2rem', textAlign: 'center' }}>
+        <p style={{ color: '#c00', marginBottom: '1rem' }}>
+          Failed to load posts: {error.message}
+        </p>
+        <button
+          onClick={() => refetch()}
+          style={{ padding: '0.5rem 1.5rem', borderRadius: 6, border: '1px solid #ccc', cursor: 'pointer' }}
+        >
+          Try again
+        </button>
+      </div>
+    );
   }
 
   return (

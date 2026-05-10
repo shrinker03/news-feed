@@ -3,7 +3,7 @@ const cors = require('cors');
 const { generatePosts } = require('./posts');
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 const posts = generatePosts(); // 1000 posts, descending by id
 
@@ -14,9 +14,15 @@ const jitter = () => 10 + Math.random() * 40;
 app.use(cors());
 app.use(express.json());
 
-// Stage 1: cursor pagination. Stable under concurrent inserts — offset is not.
-// cursor = id of the last post the client saw; server returns posts with id < cursor.
+// FAIL_RATE env var: fraction of requests to fail with 503 (e.g. FAIL_RATE=0.2 = 20%).
+// Fires before the latency sleep so the client sees a real network-style failure, not a slow one.
+const FAIL_RATE = parseFloat(process.env.FAIL_RATE) || 0;
+
 app.get('/api/posts', async (req, res) => {
+  if (FAIL_RATE > 0 && Math.random() < FAIL_RATE) {
+    return res.status(503).json({ error: 'service unavailable' });
+  }
+
   await sleep(jitter());
   const cursor = req.query.cursor ? parseInt(req.query.cursor) : null;
   const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
@@ -25,11 +31,11 @@ app.get('/api/posts', async (req, res) => {
     ? posts.filter(p => p.id < cursor).slice(0, limit)
     : posts.slice(0, limit);
 
-  // null nextCursor signals the client there are no more pages
   const nextCursor = page.length === limit ? page[page.length - 1].id : null;
   res.json({ items: page, nextCursor });
 });
 
 app.listen(PORT, () => {
-  console.log(`backend :${PORT}  — stage 1 correctness`);
+  const failMsg = FAIL_RATE > 0 ? `  FAIL_RATE=${FAIL_RATE}` : '';
+  console.log(`backend :${PORT}  — stage 2 reliability${failMsg}`);
 });

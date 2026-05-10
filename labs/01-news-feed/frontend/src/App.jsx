@@ -9,7 +9,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <div>
         <header style={{ padding: '1rem 1.5rem', background: '#fff', borderBottom: '1px solid #ddd', position: 'sticky', top: 0, zIndex: 10 }}>
-          <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>News Feed Lab — Stage 1: Correctness</h1>
+          <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>News Feed Lab — Stage 2: Reliability</h1>
         </header>
         <Feed />
       </div>
