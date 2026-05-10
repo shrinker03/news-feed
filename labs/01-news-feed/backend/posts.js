@@ -34,7 +34,8 @@ function generatePosts() {
       id,
       author: AUTHORS[id % AUTHORS.length],
       text: TEXTS[id % TEXTS.length],
-      imageUrl: `https://picsum.photos/seed/${id}/600/400`,
+      // Stage 3: local images with WebP + srcset. PostCard constructs the full srcset from this base.
+      imageUrl: `/images/photo-${((id - 1) % 20) + 1}`,
       likes: Math.floor(Math.abs(Math.sin(id)) * 200),
       createdAt: new Date(Date.now() - (1000 - id + 1) * 5 * 60_000).toISOString(),
     });

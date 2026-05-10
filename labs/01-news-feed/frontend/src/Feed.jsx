@@ -1,5 +1,8 @@
+import { useRef, useLayoutEffect, useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
+import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { fetchPostsPage } from './api';
+import PostCard from './PostCard';
 
 const PAGE_SIZE = 20;
 
@@ -8,55 +11,75 @@ export default function Feed() {
     data, fetchNextPage, hasNextPage, isFetchingNextPage, status, error, refetch,
   } = useInfiniteQuery({
     queryKey: ['posts'],
-    // TanStack Query injects { signal } automatically — fetchPostsPage threads it into fetch()
-    // so abandoned requests (unmount, fast navigation) are cancelled, not left dangling.
     queryFn: ({ pageParam, signal }) => fetchPostsPage({ pageParam, limit: PAGE_SIZE, signal }),
     initialPageParam: null,
     getNextPageParam: lastPage => lastPage.nextCursor ?? undefined,
-    // Exponential backoff + jitter: spreads retry storms so a recovering server
-    // isn't immediately re-slammed by all clients retrying in sync.
     retry: 3,
     retryDelay: attempt => Math.min(1000 * 2 ** attempt, 8000) + Math.random() * 250,
   });
 
   const posts = data?.pages.flatMap(p => p.items) ?? [];
 
+  // scrollMargin = distance from page top to the list container.
+  // useWindowVirtualizer uses this to translate between page-scroll position
+  // and item position within the container.
+  const listRef = useRef(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+  useLayoutEffect(() => {
+    if (listRef.current) setScrollMargin(listRef.current.offsetTop);
+  }, []);
+
+  const virtualizer = useWindowVirtualizer({
+    count: posts.length,
+    estimateSize: () => 340, // approx card height; measureElement corrects per-item
+    overscan: 6,             // render 6 extra items above/below viewport to prevent blank flashes
+    scrollMargin,
+  });
+
   if (status === 'pending') {
     return <div style={{ padding: '2rem', textAlign: 'center', color: '#888' }}>Loading...</div>;
   }
 
-  // Error state: show message + refetch button instead of silent failure (stage 0 behaviour).
-  // Only fires after all 3 retries are exhausted.
   if (status === 'error') {
     return (
       <div style={{ padding: '2rem', textAlign: 'center' }}>
-        <p style={{ color: '#c00', marginBottom: '1rem' }}>
-          Failed to load posts: {error.message}
-        </p>
-        <button
-          onClick={() => refetch()}
-          style={{ padding: '0.5rem 1.5rem', borderRadius: 6, border: '1px solid #ccc', cursor: 'pointer' }}
-        >
+        <p style={{ color: '#c00', marginBottom: '1rem' }}>Failed to load posts: {error.message}</p>
+        <button onClick={() => refetch()} style={{ padding: '0.5rem 1.5rem', borderRadius: 6, border: '1px solid #ccc', cursor: 'pointer' }}>
           Try again
         </button>
       </div>
     );
   }
 
+  const virtualItems = virtualizer.getVirtualItems();
+
   return (
-    <div style={{ maxWidth: 640, margin: '0 auto', padding: '1rem' }}>
-      {/* Every post stays in the DOM forever. Stage 3 virtualizes this. */}
-      {posts.map(post => (
-        <div key={post.id} style={{ background: '#fff', borderRadius: 8, marginBottom: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,.08)' }}>
-          {/* Still eager loading images — stage 3 adds loading="lazy" */}
-          <img src={post.imageUrl} alt="" style={{ display: 'block', width: '100%', height: 200, objectFit: 'cover' }} />
-          <div style={{ padding: '0.75rem 1rem' }}>
-            <strong>{post.author}</strong>
-            <p style={{ margin: '0.4rem 0 0.6rem' }}>{post.text}</p>
-            <small style={{ color: '#888' }}>{post.likes} likes &middot; {new Date(post.createdAt).toLocaleString()}</small>
+    <div ref={listRef} style={{ maxWidth: 640, margin: '0 auto', padding: '1rem' }}>
+      {/*
+        getTotalSize() is the full pixel height of ALL items — even the thousands not in the DOM.
+        This div holds that height so the scrollbar represents the real content length.
+        Only the ~10 items inside the viewport are actually rendered (see virtualItems below).
+      */}
+      <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+        {virtualItems.map(item => (
+          <div
+            key={item.key}
+            data-index={item.index}
+            ref={virtualizer.measureElement}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              // item.start is the pixel offset from page top; subtract scrollMargin
+              // to get the offset relative to this container's top edge.
+              transform: `translateY(${item.start - scrollMargin}px)`,
+            }}
+          >
+            <PostCard post={posts[item.index]} />
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
 
       {hasNextPage && (
         <button
