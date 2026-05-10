@@ -1,0 +1,11 @@
+{
+  "name": "news-feed-metrics",
+  "version": "0.0.0",
+  "scripts": {
+    "metrics": "node collect-metrics.js"
+  },
+  "dependencies": {
+    "autocannon": "^7.15.0",
+    "playwright": "^1.47.0"
+  }
+}

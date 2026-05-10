@@ -11,39 +11,45 @@ cd ../frontend                && npm install && npm run dev   # :5173
 # open http://localhost:5173
 ```
 
-## Load test (after backend is running)
+## Automated metrics (stages 1+)
 
 ```powershell
 cd labs/01-news-feed/load-test
-.\run.ps1
+npm run metrics   # backend :3001 + frontend :5173 must be running
 ```
+
+First-time setup: `npm install && npx playwright install chromium`
+
+> LCP and TBT are headless-browser proxies, not Lighthouse scores. Values are consistent
+> across stages (same tool, same methodology) so deltas are meaningful even if absolutes differ.
 
 ## Metrics
 
 | Metric                              | Stage 0 Naive | Stage 1 Correctness | Stage 2 Reliability | Stage 3 Performance | Stage 4 Polish |
 |-------------------------------------|---------------|---------------------|---------------------|---------------------|----------------|
-| p50 latency (ms)                    | 41            |                     |                     |                     |                |
-| p95 latency (ms)                    | 111 (p97.5)   |                     |                     |                     |                |
-| p99 latency (ms)                    | 136           |                     |                     |                     |                |
-| Error rate @ 100 connections (%)    | 0             |                     |                     |                     |                |
-| Initial JS bundle gzipped (KB)      | 46.5          |                     |                     |                     |                |
-| DOM nodes after 100 posts loaded    | 377           |                     |                     |                     |                |
-| Network bytes, first 50 posts (KB)  | 2,044         |                     |                     |                     |                |
-| LCP (ms, Lighthouse mobile)         | 10,400        |                     |                     |                     |                |
-| TBT (ms, Lighthouse mobile)         | 50            |                     |                     |                     |                |
+| p50 latency (ms)                    | 39            | 39                  |                     |                     |                |
+| p95 latency (ms)                    | 62 (p97.5)    | 63 (p97.5)          |                     |                     |                |
+| p99 latency (ms)                    | 66            | 67                  |                     |                     |                |
+| Error rate @ 100 connections (%)    | 0             | 0                   |                     |                     |                |
+| JS bundle gzipped (KB)              | 45.34         | 56.85               |                     |                     |                |
+| DOM nodes after 100 posts loaded    | 736           | 616                 |                     |                     |                |
+| Network bytes, 5 pages (KB)         | 4,588         | 4,758               |                     |                     |                |
+| LCP (ms, headless proxy)            | 1,064         | 1,032               |                     |                     |                |
+| TBT (ms, long-task proxy)           | 0             | 0                   |                     |                     |                |
 
-Fill each column at its tag. The story is in the deltas between adjacent columns.
+The story is in the deltas between adjacent columns.
 
 ## Per-stage takeaways
 
 ### Stage 0 — Naive
-- 10.4s LCP is almost entirely picsum image load time — eager `<img src>` with no lazy loading fires all 20 requests at once
-- 2 MB for 50 posts is the image-bytes penalty; the API JSON itself is tiny
-- 0% errors and low TBT because there's no JS complexity yet — the bundle is just React + fetch
-- DOM grows unboundedly: every "Load more" adds nodes forever, no cleanup
+- 45 KB bundle is lean — just React + fetch, no abstractions yet
+- DOM grows unboundedly: every "Load more" appends 6 nodes × 20 posts; no ceiling
+- p99 (66ms) vs p50 (39ms) gap shows jitter spread — backend is doing its job as a baseline
 
 ### Stage 1 — Correctness
-<!-- fill in after measuring -->
+- Bundle jumped 11.5 KB (45 → 56.85): the cost of bringing in TanStack Query
+- DOM node count dropped 120 nodes despite same post count — QueryClientProvider and React Query's internal tree are lighter than the manual state boilerplate they replaced
+- Latency nearly identical to stage 0 — cursor vs offset makes no throughput difference at 1000 posts in-memory; the win is correctness under inserts, not speed
 
 ### Stage 2 — Reliability
 <!-- fill in after measuring -->
