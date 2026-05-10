@@ -22,22 +22,25 @@ cd labs/01-news-feed/load-test
 
 | Metric                              | Stage 0 Naive | Stage 1 Correctness | Stage 2 Reliability | Stage 3 Performance | Stage 4 Polish |
 |-------------------------------------|---------------|---------------------|---------------------|---------------------|----------------|
-| p50 latency (ms)                    |               |                     |                     |                     |                |
-| p95 latency (ms)                    |               |                     |                     |                     |                |
-| p99 latency (ms)                    |               |                     |                     |                     |                |
-| Error rate @ 100 connections (%)    |               |                     |                     |                     |                |
-| Initial JS bundle gzipped (KB)      |               |                     |                     |                     |                |
-| DOM nodes after 100 posts loaded    |               |                     |                     |                     |                |
-| Network bytes, first 50 posts (KB)  |               |                     |                     |                     |                |
-| LCP (ms, Lighthouse mobile)         |               |                     |                     |                     |                |
-| TTI (ms, Lighthouse mobile)         |               |                     |                     |                     |                |
+| p50 latency (ms)                    | 41            |                     |                     |                     |                |
+| p95 latency (ms)                    | 111 (p97.5)   |                     |                     |                     |                |
+| p99 latency (ms)                    | 136           |                     |                     |                     |                |
+| Error rate @ 100 connections (%)    | 0             |                     |                     |                     |                |
+| Initial JS bundle gzipped (KB)      | 46.5          |                     |                     |                     |                |
+| DOM nodes after 100 posts loaded    | 377           |                     |                     |                     |                |
+| Network bytes, first 50 posts (KB)  | 2,044         |                     |                     |                     |                |
+| LCP (ms, Lighthouse mobile)         | 10,400        |                     |                     |                     |                |
+| TBT (ms, Lighthouse mobile)         | 50            |                     |                     |                     |                |
 
 Fill each column at its tag. The story is in the deltas between adjacent columns.
 
 ## Per-stage takeaways
 
 ### Stage 0 — Naive
-<!-- fill in after measuring -->
+- 10.4s LCP is almost entirely picsum image load time — eager `<img src>` with no lazy loading fires all 20 requests at once
+- 2 MB for 50 posts is the image-bytes penalty; the API JSON itself is tiny
+- 0% errors and low TBT because there's no JS complexity yet — the bundle is just React + fetch
+- DOM grows unboundedly: every "Load more" adds nodes forever, no cleanup
 
 ### Stage 1 — Correctness
 <!-- fill in after measuring -->
